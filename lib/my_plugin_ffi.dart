@@ -90,6 +90,13 @@ double distance(Coordinate c1, Coordinate c2) {
   return _bindings.distance(c1, c2);
 }
 
+String reverse(String str) {
+  final int len = str.length;
+  final Pointer<Utf8> utf8 = str.toNativeUtf8();
+  final result = _bindings.reverse(utf8.cast<Char>(), len);
+  return result.cast<Utf8>().toDartString();
+}
+
 const String _libName = 'my_plugin_ffi';
 
 /// The dynamic library in which the symbols for [MyPluginFfiBindings] can be found.

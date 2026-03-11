@@ -169,6 +169,19 @@ class MyPluginFfiBindings {
       );
   late final _distance = _distancePtr
       .asFunction<double Function(Coordinate, Coordinate)>();
+
+  ffi.Pointer<ffi.Char> reverse(ffi.Pointer<ffi.Char> str, int length) {
+    return _reverse(str, length);
+  }
+
+  late final _reversePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Char>, ffi.Int)
+        >
+      >('reverse');
+  late final _reverse = _reversePtr
+      .asFunction<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Char>, int)>();
 }
 
 final class Coordinate extends ffi.Struct {

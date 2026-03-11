@@ -57,3 +57,5 @@ FFI_PLUGIN_EXPORT struct Coordinate create_coordinate(double latitude, double lo
 FFI_PLUGIN_EXPORT struct Place create_place(char *name, double latitude, double longitude);
 
 FFI_PLUGIN_EXPORT double distance(struct Coordinate, struct Coordinate);
+
+FFI_PLUGIN_EXPORT char *reverse(char *str, int length);

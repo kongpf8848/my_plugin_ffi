@@ -121,6 +121,16 @@ class _MyAppState extends State<MyApp> {
                   },
                   child: const Text('distance'),
                 ),
+                spacerSmall,
+                ElevatedButton(
+                  onPressed: () {
+                    if (kDebugMode) {
+                      final backwards = 'backwards';
+                      print('reverse= ${my_plugin_ffi.reverse(backwards)}');
+                    }
+                  },
+                  child: const Text('reverse'),
+                ),
               ],
             ),
           ),

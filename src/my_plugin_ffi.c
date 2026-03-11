@@ -134,3 +134,15 @@ FFI_PLUGIN_EXPORT double distance(struct Coordinate c1, struct Coordinate c2)
   double lon_diff = c2.longitude - c1.longitude;
   return sqrt(lat_diff * lat_diff + lon_diff * lon_diff);
 }
+
+FFI_PLUGIN_EXPORT char *reverse(char *str, int length)
+{
+  char *reversed = (char *)malloc((length + 1) * sizeof(char));
+
+  for (int i = 0; i < length; ++i)
+  {
+    reversed[i] = str[length - 1 - i];
+  }
+  reversed[length] = '\0';
+  return reversed;
+}
