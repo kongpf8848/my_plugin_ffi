@@ -107,6 +107,16 @@ String getBaseVersion({int bufferSize = 256}) {
   }
 }
 
+/// Function that takes a callback
+void callCallback(int value, DartIntCallbackFunction callback) {
+  final nativeCallback = ffi.NativeCallable<IntCallbackFunction>.isolateLocal(callback);
+  try {
+    _bindings.call_callback(value, nativeCallback.nativeFunction);
+  } finally {
+    nativeCallback.close();
+  }
+}
+
 const String _libName = 'my_plugin_ffi';
 
 /// The dynamic library in which the symbols for [MyPluginFfiBindings] can be found.

@@ -193,6 +193,18 @@ class MyPluginFfiBindings {
       );
   late final _getBaseVersion = _getBaseVersionPtr
       .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
+
+  /// Function that takes a callback
+  void call_callback(int value, IntCallback callback) {
+    return _call_callback(value, callback);
+  }
+
+  late final _call_callbackPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int, IntCallback)>>(
+        'call_callback',
+      );
+  late final _call_callback = _call_callbackPtr
+      .asFunction<void Function(int, IntCallback)>();
 }
 
 final class Coordinate extends ffi.Struct {
@@ -208,3 +220,8 @@ final class Place extends ffi.Struct {
 
   external Coordinate coordinate;
 }
+
+/// Define a callback type
+typedef IntCallback = ffi.Pointer<ffi.NativeFunction<IntCallbackFunction>>;
+typedef IntCallbackFunction = ffi.Void Function(ffi.Int);
+typedef DartIntCallbackFunction = void Function(int);

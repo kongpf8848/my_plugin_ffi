@@ -140,6 +140,15 @@ class _MyAppState extends State<MyApp> {
                   },
                   child: const Text('version'),
                 ),
+                spacerSmall,
+                ElevatedButton(
+                  onPressed: () {
+                   my_plugin_ffi.callCallback(12, (value){
+                      print('Callback called with value: $value');
+                   });
+                  },
+                  child: const Text('callback'),
+                ),
               ],
             ),
           ),

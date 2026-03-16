@@ -61,3 +61,9 @@ FFI_PLUGIN_EXPORT double distance(struct Coordinate, struct Coordinate);
 FFI_PLUGIN_EXPORT char *reverse(char *str, int length);
 
 FFI_PLUGIN_EXPORT void getBaseVersion(char ver[]);
+
+// Define a callback type
+typedef void (*IntCallback)(int);
+
+// Function that takes a callback
+FFI_PLUGIN_EXPORT void call_callback(int value, IntCallback callback);

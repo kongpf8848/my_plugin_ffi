@@ -133,3 +133,8 @@ FFI_PLUGIN_EXPORT void getBaseVersion(char ver[]) {
     const char *version = "1.0.0";
     strcpy_s(ver, strlen(version) + 1, version);
 }
+
+// Function that takes a callback
+FFI_PLUGIN_EXPORT void call_callback(int value, IntCallback callback) {
+    callback(value + 8);
+}
