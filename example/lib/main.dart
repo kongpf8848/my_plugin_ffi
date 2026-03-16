@@ -131,6 +131,15 @@ class _MyAppState extends State<MyApp> {
                   },
                   child: const Text('reverse'),
                 ),
+                spacerSmall,
+                ElevatedButton(
+                  onPressed: () {
+                    if (kDebugMode) {
+                      print('version= ${my_plugin_ffi.getBaseVersion()}');
+                    }
+                  },
+                  child: const Text('version'),
+                ),
               ],
             ),
           ),

@@ -59,3 +59,5 @@ FFI_PLUGIN_EXPORT struct Place create_place(char *name, double latitude, double 
 FFI_PLUGIN_EXPORT double distance(struct Coordinate, struct Coordinate);
 
 FFI_PLUGIN_EXPORT char *reverse(char *str, int length);
+
+FFI_PLUGIN_EXPORT void getBaseVersion(char ver[]);

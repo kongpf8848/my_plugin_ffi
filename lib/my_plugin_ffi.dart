@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ffi';
+import 'dart:ffi' as ffi;
 import 'dart:io';
 import 'dart:isolate';
 
@@ -36,17 +36,17 @@ Future<int> sumAsync(int a, int b) async {
 int subtract(int a, int b) => _bindings.subtract(a, b);
 
 String hello() {
-  final Pointer<Char> result = _bindings.hello();
+  final ffi.Pointer<ffi.Char> result = _bindings.hello();
   return result.cast<Utf8>().toDartString();
 }
 
 List<String> getLanguages() {
-  final Pointer<Int> outLen = malloc.allocate<Int>(sizeOf<Int>());
-  final Pointer<Pointer<Char>> result = _bindings.get_languages(outLen);
+  final ffi.Pointer<ffi.Int> outLen = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>());
+  final ffi.Pointer<ffi.Pointer<ffi.Char>> result = _bindings.get_languages(outLen);
   final int len = outLen.value;
   final List<String> languages = <String>[];
   for (int i = 0; i < len; i++) {
-    final Pointer<Char> languagePtr = result.elementAt(i).value;
+    final ffi.Pointer<ffi.Char> languagePtr = result.elementAt(i).value;
     languages.add(languagePtr.cast<Utf8>().toDartString());
   }
   malloc.free(outLen);
@@ -55,17 +55,17 @@ List<String> getLanguages() {
 }
 
 Map<String, String> getMap() {
-  final Pointer<Int> outPairs = malloc.allocate<Int>(sizeOf<Int>());
-  final Pointer<Pointer<Char>> arr = _bindings.get_map(outPairs);
+  final ffi.Pointer<ffi.Int> outPairs = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>());
+  final ffi.Pointer<ffi.Pointer<ffi.Char>> arr = _bindings.get_map(outPairs);
   final int pairs = outPairs.value;
   malloc.free(outPairs);
 
-  if (arr == nullptr || pairs == 0) return <String, String>{};
+  if (arr == ffi.nullptr || pairs == 0) return <String, String>{};
 
   final Map<String, String> result = <String, String>{};
   for (int i = 0; i < pairs; i++) {
-    final Pointer<Char> keyPtr = arr.elementAt(i * 2).value;
-    final Pointer<Char> valPtr = arr.elementAt(i * 2 + 1).value;
+    final ffi.Pointer<ffi.Char> keyPtr = arr.elementAt(i * 2).value;
+    final ffi.Pointer<ffi.Char> valPtr = arr.elementAt(i * 2 + 1).value;
     final String key = keyPtr.cast<Utf8>().toDartString();
     final String val = valPtr.cast<Utf8>().toDartString();
     result[key] = val;
@@ -81,8 +81,8 @@ Coordinate createCoordinate(double x, double y) {
 }
 
 Place createPlace(String name, double lat, double lon) {
-  final Pointer<Utf8> utf8 = name.toNativeUtf8();
-  final Place p = _bindings.create_place(utf8.cast<Char>(), lat, lon);
+  final ffi.Pointer<Utf8> utf8 = name.toNativeUtf8();
+  final Place p = _bindings.create_place(utf8.cast<ffi.Char>(), lat, lon);
   return p;
 }
 
@@ -92,23 +92,33 @@ double distance(Coordinate c1, Coordinate c2) {
 
 String reverse(String str) {
   final int len = str.length;
-  final Pointer<Utf8> utf8 = str.toNativeUtf8();
-  final result = _bindings.reverse(utf8.cast<Char>(), len);
+  final ffi.Pointer<Utf8> utf8 = str.toNativeUtf8();
+  final result = _bindings.reverse(utf8.cast<ffi.Char>(), len);
   return result.cast<Utf8>().toDartString();
+}
+
+String getBaseVersion({int bufferSize = 256}) {
+  final ffi.Pointer<ffi.Char> versionPtr = malloc<ffi.Char>(bufferSize);
+  try {
+    _bindings.getBaseVersion(versionPtr);
+    return versionPtr.cast<Utf8>().toDartString();
+  } finally {
+    malloc.free(versionPtr);
+  }
 }
 
 const String _libName = 'my_plugin_ffi';
 
 /// The dynamic library in which the symbols for [MyPluginFfiBindings] can be found.
-final DynamicLibrary _dylib = () {
+final ffi.DynamicLibrary _dylib = () {
   if (Platform.isMacOS || Platform.isIOS) {
-    return DynamicLibrary.open('$_libName.framework/$_libName');
+    return ffi.DynamicLibrary.open('$_libName.framework/$_libName');
   }
   if (Platform.isAndroid || Platform.isLinux) {
-    return DynamicLibrary.open('lib$_libName.so');
+    return ffi.DynamicLibrary.open('lib$_libName.so');
   }
   if (Platform.isWindows) {
-    return DynamicLibrary.open('$_libName.dll');
+    return ffi.DynamicLibrary.open('$_libName.dll');
   }
   throw UnsupportedError('Unknown platform: ${Platform.operatingSystem}');
 }();

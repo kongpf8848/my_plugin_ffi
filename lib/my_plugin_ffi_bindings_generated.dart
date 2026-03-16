@@ -182,6 +182,17 @@ class MyPluginFfiBindings {
       >('reverse');
   late final _reverse = _reversePtr
       .asFunction<ffi.Pointer<ffi.Char> Function(ffi.Pointer<ffi.Char>, int)>();
+
+  void getBaseVersion(ffi.Pointer<ffi.Char> ver) {
+    return _getBaseVersion(ver);
+  }
+
+  late final _getBaseVersionPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Char>)>>(
+        'getBaseVersion',
+      );
+  late final _getBaseVersion = _getBaseVersionPtr
+      .asFunction<void Function(ffi.Pointer<ffi.Char>)>();
 }
 
 final class Coordinate extends ffi.Struct {
