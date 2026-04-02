@@ -145,12 +145,12 @@ String? getLibraryVersion({int bufferSize = 256}) {
 ///
 /// Returns true if installed, false otherwise
 bool isSoftwareInstalled(String softwareName) {
-  final ffi.Pointer<Utf8> nameUtf8 = softwareName.toNativeUtf8();
+  final ffi.Pointer<ffi.Char> nameNative = _encodeForNativeAcp(softwareName);
   try {
-    final int result = _bindings.IsSoftwareInstalled(nameUtf8.cast<ffi.Char>());
+    final int result = _bindings.IsSoftwareInstalled(nameNative);
     return result == 1;
   } finally {
-    malloc.free(nameUtf8);
+    malloc.free(nameNative);
   }
 }
 
@@ -295,6 +295,50 @@ String _decodeNativeBytes(List<int> bytes) {
   }
 }
 
+ffi.Pointer<ffi.Char> _encodeForNativeAcp(String value) {
+  if (!Platform.isWindows) {
+    return value.toNativeUtf8().cast<ffi.Char>();
+  }
+
+  final ffi.Pointer<Utf16> wide = value.toNativeUtf16();
+  try {
+    final int bytesNeeded = _wideCharToMultiByte(
+      _cpAcp,
+      0,
+      wide.cast<ffi.Uint16>(),
+      value.length,
+      ffi.nullptr,
+      0,
+      ffi.nullptr,
+      ffi.nullptr,
+    );
+    if (bytesNeeded <= 0) {
+      return value.toNativeUtf8().cast<ffi.Char>();
+    }
+
+    final ffi.Pointer<ffi.Uint8> out = malloc<ffi.Uint8>(bytesNeeded + 1);
+    final int written = _wideCharToMultiByte(
+      _cpAcp,
+      0,
+      wide.cast<ffi.Uint16>(),
+      value.length,
+      out,
+      bytesNeeded,
+      ffi.nullptr,
+      ffi.nullptr,
+    );
+    if (written <= 0) {
+      malloc.free(out);
+      return value.toNativeUtf8().cast<ffi.Char>();
+    }
+
+    out[written] = 0;
+    return out.cast<ffi.Char>();
+  } finally {
+    malloc.free(wide);
+  }
+}
+
 const int _cpAcp = 0;
 
 typedef _MultiByteToWideCharNative =
@@ -317,6 +361,30 @@ typedef _MultiByteToWideCharDart =
       int wideCharLength,
     );
 
+typedef _WideCharToMultiByteNative =
+    ffi.Int32 Function(
+      ffi.Uint32 codePage,
+      ffi.Uint32 flags,
+      ffi.Pointer<ffi.Uint16> wideCharStr,
+      ffi.Int32 wideCharLength,
+      ffi.Pointer<ffi.Uint8> multiByteStr,
+      ffi.Int32 multiByteLength,
+      ffi.Pointer<ffi.Uint8> defaultChar,
+      ffi.Pointer<ffi.Int32> usedDefaultChar,
+    );
+
+typedef _WideCharToMultiByteDart =
+    int Function(
+      int codePage,
+      int flags,
+      ffi.Pointer<ffi.Uint16> wideCharStr,
+      int wideCharLength,
+      ffi.Pointer<ffi.Uint8> multiByteStr,
+      int multiByteLength,
+      ffi.Pointer<ffi.Uint8> defaultChar,
+      ffi.Pointer<ffi.Int32> usedDefaultChar,
+    );
+
 final ffi.DynamicLibrary? _kernel32 = Platform.isWindows
     ? ffi.DynamicLibrary.open('kernel32.dll')
     : null;
@@ -324,6 +392,11 @@ final ffi.DynamicLibrary? _kernel32 = Platform.isWindows
 final _MultiByteToWideCharDart _multiByteToWideChar = _kernel32!
     .lookupFunction<_MultiByteToWideCharNative, _MultiByteToWideCharDart>(
       'MultiByteToWideChar',
+    );
+
+final _WideCharToMultiByteDart _wideCharToMultiByte = _kernel32!
+    .lookupFunction<_WideCharToMultiByteNative, _WideCharToMultiByteDart>(
+      'WideCharToMultiByte',
     );
 
 const String _libName = 'my_plugin_ffi';
