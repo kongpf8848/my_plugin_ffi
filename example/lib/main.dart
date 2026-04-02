@@ -1,157 +1,219 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'dart:async';
-
 import 'package:my_plugin_ffi/my_plugin_ffi.dart' as my_plugin_ffi;
-import 'package:my_plugin_ffi/my_plugin_ffi_bindings_generated.dart';
-
-import 'dart:ffi';
-import 'package:ffi/ffi.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-class MyApp extends StatefulWidget {
+class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  Widget build(BuildContext context) {
+    return const MaterialApp(home: SoftwareInfoDemoPage());
+  }
 }
 
-class _MyAppState extends State<MyApp> {
-  late int sumResult;
-  late Future<int> sumAsyncResult;
-  late int subtractResult;
+class SoftwareInfoDemoPage extends StatefulWidget {
+  const SoftwareInfoDemoPage({super.key});
 
   @override
-  void initState() {
-    super.initState();
-    sumResult = my_plugin_ffi.sum(1, 2);
-    sumAsyncResult = my_plugin_ffi.sumAsync(3, 4);
-    subtractResult = my_plugin_ffi.subtract(1, 2);
+  State<SoftwareInfoDemoPage> createState() => _SoftwareInfoDemoPageState();
+}
+
+class _SoftwareInfoDemoPageState extends State<SoftwareInfoDemoPage> {
+  final TextEditingController _softwareNameController = TextEditingController(
+    text: 'Google Chrome',
+  );
+  final TextEditingController _detailLimitController = TextEditingController(
+    text: '100',
+  );
+  final TextEditingController _nameFilterController = TextEditingController();
+
+  String _versionResult = 'Not queried';
+  String _installedResult = 'Not queried';
+  String _enumerationResult = 'Not queried';
+
+  List<my_plugin_ffi.SoftwareInfo> _allSoftware =
+      <my_plugin_ffi.SoftwareInfo>[];
+
+  @override
+  void dispose() {
+    _softwareNameController.dispose();
+    _detailLimitController.dispose();
+    _nameFilterController.dispose();
+    super.dispose();
+  }
+
+  void _queryLibraryVersion() {
+    try {
+      final version = my_plugin_ffi.getLibraryVersion();
+      setState(() {
+        _versionResult = version ?? 'Call failed (returned null)';
+      });
+    } catch (e) {
+      setState(() {
+        _versionResult = 'Call error: $e';
+      });
+    }
+  }
+
+  void _checkSoftwareInstalled() {
+    final softwareName = _softwareNameController.text.trim();
+    if (softwareName.isEmpty) {
+      setState(() {
+        _installedResult = 'Please enter a software name';
+      });
+      return;
+    }
+
+    try {
+      final installed = my_plugin_ffi.isSoftwareInstalled(softwareName);
+      setState(() {
+        _installedResult =
+            '"$softwareName" ${installed ? 'Installed' : 'Not installed'}';
+      });
+    } catch (e) {
+      setState(() {
+        _installedResult = 'Call error: $e';
+      });
+    }
+  }
+
+  int _parseDetailLimit() {
+    final parsed = int.tryParse(_detailLimitController.text.trim());
+    if (parsed == null || parsed <= 0) {
+      return 100;
+    }
+    return parsed;
+  }
+
+  void _enumerateSoftware() {
+    try {
+      final list = my_plugin_ffi.enumerateInstalledSoftware(maxItems: 100);
+      setState(() {
+        _allSoftware = list;
+        _enumerationResult = 'Total: ${list.length}';
+      });
+    } catch (e) {
+      setState(() {
+        _allSoftware = <my_plugin_ffi.SoftwareInfo>[];
+        _enumerationResult = 'Call error: $e';
+      });
+    }
+  }
+
+  Widget _buildDetailList() {
+    if (_allSoftware.isEmpty) {
+      return const Text(
+        'Details: no data yet. Click "Enumerate installed software" first.',
+      );
+    }
+
+    final limit = _parseDetailLimit();
+    final keyword = _nameFilterController.text.trim().toLowerCase();
+    var filtered = keyword.isEmpty
+        ? _allSoftware
+        : _allSoftware
+              .where((item) => item.name.toLowerCase().contains(keyword))
+              .toList();
+    filtered = filtered.where((item) => item.name.isNotEmpty).toList();
+    final items = filtered.take(limit).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Details: showing ${items.length} / ${filtered.length} (filtered)',
+        ),
+        const SizedBox(height: 8),
+        ...items.asMap().entries.map((entry) {
+          final index = entry.key + 1;
+          final item = entry.value;
+          return Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            child: Padding(
+              padding: const EdgeInsets.all(10),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$index. ${item.name.isEmpty ? '(no name)' : item.name}',
+                  ),
+                  Text('Publisher: ${item.publisher}'),
+                  Text('Version: ${item.version}'),
+                  Text('Install Date: ${item.installDate}'),
+                  Text('Install Location: ${item.installLocation}'),
+                  Text('Uninstall String: ${item.uninstallString}'),
+                  Text('Display Icon: ${item.displayIcon}'),
+                  Text('Estimated Size (KB): ${item.estimatedSize}'),
+                  Text('Architecture: ${item.is64Bit ? '64-bit' : '32-bit'}'),
+                ],
+              ),
+            ),
+          );
+        }),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    print("++++++++++++++++++++Boxing main thread for sum(1, 2)...");
-    const textStyle = TextStyle(fontSize: 25);
-    const spacerSmall = SizedBox(height: 10);
-    return MaterialApp(
-      home: Scaffold(
-        appBar: AppBar(title: const Text('Native Packages')),
-        body: SingleChildScrollView(
-          child: Container(
-            padding: const .all(10),
-            child: Column(
-              children: [
-                const Text(
-                  'This calls a native function through FFI that is shipped as source in the package. '
-                  'The native code is built as part of the Flutter Runner build.',
-                  style: textStyle,
-                  textAlign: .center,
-                ),
-                spacerSmall,
-                Text(
-                  'sum(1, 2) = $sumResult',
-                  style: textStyle,
-                  textAlign: .center,
-                ),
-                spacerSmall,
-                FutureBuilder<int>(
-                  future: sumAsyncResult,
-                  builder: (BuildContext context, AsyncSnapshot<int> value) {
-                    final displayValue = (value.hasData)
-                        ? value.data
-                        : 'loading';
-                    return Text(
-                      'await sumAsync(3, 4) = $displayValue',
-                      style: textStyle,
-                      textAlign: .center,
-                    );
-                  },
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    if (kDebugMode) {
-                      print('subtract(1, 2) = $subtractResult');
-                    }
-                  },
-                  child: const Text('subtract'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    if (kDebugMode) {
-                      print('languages() = ${my_plugin_ffi.getLanguages()}');
-                    }
-                  },
-                  child: const Text('languages'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    if (kDebugMode) {
-                      print('map() = ${my_plugin_ffi.getMap()}');
-                    }
-                  },
-                  child: const Text('map'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    final coordinate = my_plugin_ffi.createCoordinate(3.5, 4.6);
-                    print(
-                      'Coordinate is lat ${coordinate.latitude}, long ${coordinate.longitude}',
-                    );
-
-                    final place = my_plugin_ffi.createPlace("jack", 2.0, 24.0);
-                    final name = place.name.cast<Utf8>().toDartString();
-                    final coord = place.coordinate;
-                    print(
-                      'The name of my place is $name at ${coord.latitude}, ${coord.longitude}',
-                    );
-
-                    final dist = my_plugin_ffi.distance(
-                      my_plugin_ffi.createCoordinate(2.0, 2.0),
-                      my_plugin_ffi.createCoordinate(5.0, 6.0),
-                    );
-                    print("distance between (2,2) and (5,6) = $dist");
-                  },
-                  child: const Text('distance'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    if (kDebugMode) {
-                      final backwards = 'backwards';
-                      print('reverse= ${my_plugin_ffi.reverse(backwards)}');
-                    }
-                  },
-                  child: const Text('reverse'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                    if (kDebugMode) {
-                      print('version= ${my_plugin_ffi.getBaseVersion()}');
-                    }
-                  },
-                  child: const Text('version'),
-                ),
-                spacerSmall,
-                ElevatedButton(
-                  onPressed: () {
-                   my_plugin_ffi.callCallback(12, (value){
-                      print('Callback called with value: $value');
-                   });
-                  },
-                  child: const Text('callback'),
-                ),
-              ],
+    return Scaffold(
+      appBar: AppBar(title: const Text('software_info.dll FFI verification')),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ElevatedButton(
+              onPressed: _queryLibraryVersion,
+              child: const Text('1) Get DLL Version'),
             ),
-          ),
+            Text('Result: $_versionResult'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _softwareNameController,
+              decoration: const InputDecoration(
+                labelText: 'Software name (partial match)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 8),
+            ElevatedButton(
+              onPressed: _checkSoftwareInstalled,
+              child: const Text('2) Check Installed Status'),
+            ),
+            Text('Result: $_installedResult'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _enumerateSoftware,
+              child: const Text('3) Enumerate Installed Software'),
+            ),
+            const SizedBox(height: 8),
+            Text('Result: $_enumerationResult'),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _detailLimitController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Detail list size N (top N)',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameFilterController,
+              decoration: const InputDecoration(
+                labelText: 'Filter by software name',
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 8),
+            Expanded(child: SingleChildScrollView(child: _buildDetailList())),
+          ],
         ),
       ),
     );

@@ -1,15 +1,17 @@
 # Run with `dart run ffigen --config ffigen.yaml`.
 name: MyPluginFfiBindings
 description: |
-  Bindings for `src/my_plugin_ffi.h`.
+  Bindings for `src/my_plugin_ffi.h` and `src/software_info.h`.
 
   Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
 output: 'lib/my_plugin_ffi_bindings_generated.dart'
 headers:
   entry-points:
     - 'src/my_plugin_ffi.h'
+    - 'src/software_info.h'
   include-directives:
     - 'src/my_plugin_ffi.h'
+    - 'src/software_info.h'
 preamble: |
   // ignore_for_file: always_specify_types
   // ignore_for_file: camel_case_types

@@ -41,8 +41,12 @@ String hello() {
 }
 
 List<String> getLanguages() {
-  final ffi.Pointer<ffi.Int> outLen = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>());
-  final ffi.Pointer<ffi.Pointer<ffi.Char>> result = _bindings.get_languages(outLen);
+  final ffi.Pointer<ffi.Int> outLen = malloc.allocate<ffi.Int>(
+    ffi.sizeOf<ffi.Int>(),
+  );
+  final ffi.Pointer<ffi.Pointer<ffi.Char>> result = _bindings.get_languages(
+    outLen,
+  );
   final int len = outLen.value;
   final List<String> languages = <String>[];
   for (int i = 0; i < len; i++) {
@@ -55,7 +59,9 @@ List<String> getLanguages() {
 }
 
 Map<String, String> getMap() {
-  final ffi.Pointer<ffi.Int> outPairs = malloc.allocate<ffi.Int>(ffi.sizeOf<ffi.Int>());
+  final ffi.Pointer<ffi.Int> outPairs = malloc.allocate<ffi.Int>(
+    ffi.sizeOf<ffi.Int>(),
+  );
   final ffi.Pointer<ffi.Pointer<ffi.Char>> arr = _bindings.get_map(outPairs);
   final int pairs = outPairs.value;
   malloc.free(outPairs);
@@ -109,13 +115,216 @@ String getBaseVersion({int bufferSize = 256}) {
 
 /// Function that takes a callback
 void callCallback(int value, DartIntCallbackFunction callback) {
-  final nativeCallback = ffi.NativeCallable<IntCallbackFunction>.isolateLocal(callback);
+  final nativeCallback = ffi.NativeCallable<IntCallbackFunction>.isolateLocal(
+    callback,
+  );
   try {
     _bindings.call_callback(value, nativeCallback.nativeFunction);
   } finally {
     nativeCallback.close();
   }
 }
+
+/// Get DLL version information
+///
+/// Returns version string (e.g., "1.0.0") or null on error
+String? getLibraryVersion({int bufferSize = 256}) {
+  final ffi.Pointer<ffi.Char> versionPtr = malloc<ffi.Char>(bufferSize);
+  try {
+    final int result = _bindings.GetLibraryVersion(versionPtr, bufferSize);
+    if (result == 0) {
+      return versionPtr.cast<Utf8>().toDartString();
+    }
+    return null;
+  } finally {
+    malloc.free(versionPtr);
+  }
+}
+
+/// Check if software is installed by name (partial match, case-insensitive)
+///
+/// Returns true if installed, false otherwise
+bool isSoftwareInstalled(String softwareName) {
+  final ffi.Pointer<Utf8> nameUtf8 = softwareName.toNativeUtf8();
+  try {
+    final int result = _bindings.IsSoftwareInstalled(nameUtf8.cast<ffi.Char>());
+    return result == 1;
+  } finally {
+    malloc.free(nameUtf8);
+  }
+}
+
+/// Software information data class
+class SoftwareInfo {
+  final String name;
+  final String publisher;
+  final String version;
+  final String installDate;
+  final String installLocation;
+  final String uninstallString;
+  final String displayIcon;
+  final int estimatedSize;
+  final bool is64Bit;
+
+  SoftwareInfo({
+    required this.name,
+    required this.publisher,
+    required this.version,
+    required this.installDate,
+    required this.installLocation,
+    required this.uninstallString,
+    required this.displayIcon,
+    required this.estimatedSize,
+    required this.is64Bit,
+  });
+
+  @override
+  String toString() {
+    return 'SoftwareInfo{name: $name, publisher: $publisher, version: $version, '
+        'installDate: $installDate, estimatedSize: $estimatedSize, is64Bit: $is64Bit}';
+  }
+}
+
+/// Enumerate installed software
+///
+/// Returns list of installed software information
+List<SoftwareInfo> enumerateInstalledSoftware({int maxItems = 1000}) {
+  final ffi.Pointer<ffi.Int> arraySize = malloc.allocate<ffi.Int>(
+    ffi.sizeOf<ffi.Int>(),
+  );
+  final ffi.Pointer<SOFTWARE_INFO> infoArray = malloc.allocate<SOFTWARE_INFO>(
+    ffi.sizeOf<SOFTWARE_INFO>() * maxItems,
+  );
+
+  try {
+    arraySize.value = maxItems;
+    final int result = _bindings.EnumerateInstalledSoftware(
+      infoArray,
+      arraySize,
+    );
+
+    if (result < 0) {
+      return [];
+    }
+
+    final int actualCount = arraySize.value;
+    final List<SoftwareInfo> softwareList = [];
+
+    for (int i = 0; i < actualCount; i++) {
+      final SOFTWARE_INFO info = (infoArray + i).ref;
+      softwareList.add(
+        SoftwareInfo(
+          name: _convertCharArrayToString(info.name, 256),
+          publisher: _convertCharArrayToString(info.publisher, 256),
+          version: _convertCharArrayToString(info.version, 64),
+          installDate: _convertCharArrayToString(info.installDate, 32),
+          installLocation: _convertCharArrayToString(info.installLocation, 260),
+          uninstallString: _convertCharArrayToString(info.uninstallString, 260),
+          displayIcon: _convertCharArrayToString(info.displayIcon, 260),
+          estimatedSize: info.estimatedSize,
+          is64Bit: info.is64Bit == 1,
+        ),
+      );
+    }
+
+    return softwareList;
+  } finally {
+    malloc.free(arraySize);
+    malloc.free(infoArray);
+  }
+}
+
+/// Helper function to convert a fixed-size C char array to Dart string.
+String _convertCharArrayToString(ffi.Array<ffi.Char> array, int maxLength) {
+  final units = <int>[];
+  for (int i = 0; i < maxLength; i++) {
+    final int value = array[i];
+    if (value == 0) {
+      break;
+    }
+    units.add(value & 0xFF);
+  }
+  return _decodeNativeBytes(units);
+}
+
+String _decodeNativeBytes(List<int> bytes) {
+  if (bytes.isEmpty) {
+    return '';
+  }
+  if (!Platform.isWindows) {
+    return String.fromCharCodes(bytes);
+  }
+
+  final ffi.Pointer<ffi.Uint8> src = malloc<ffi.Uint8>(bytes.length);
+  try {
+    for (int i = 0; i < bytes.length; i++) {
+      src[i] = bytes[i];
+    }
+
+    final int wideLength = _multiByteToWideChar(
+      _cpAcp,
+      0,
+      src,
+      bytes.length,
+      ffi.nullptr,
+      0,
+    );
+    if (wideLength <= 0) {
+      return String.fromCharCodes(bytes);
+    }
+
+    final ffi.Pointer<ffi.Uint16> widePtr = malloc<ffi.Uint16>(wideLength);
+    try {
+      final int written = _multiByteToWideChar(
+        _cpAcp,
+        0,
+        src,
+        bytes.length,
+        widePtr,
+        wideLength,
+      );
+      if (written <= 0) {
+        return String.fromCharCodes(bytes);
+      }
+      return widePtr.cast<Utf16>().toDartString(length: written);
+    } finally {
+      malloc.free(widePtr);
+    }
+  } finally {
+    malloc.free(src);
+  }
+}
+
+const int _cpAcp = 0;
+
+typedef _MultiByteToWideCharNative =
+    ffi.Int32 Function(
+      ffi.Uint32 codePage,
+      ffi.Uint32 flags,
+      ffi.Pointer<ffi.Uint8> multiByteStr,
+      ffi.Int32 multiByteLength,
+      ffi.Pointer<ffi.Uint16> wideCharStr,
+      ffi.Int32 wideCharLength,
+    );
+
+typedef _MultiByteToWideCharDart =
+    int Function(
+      int codePage,
+      int flags,
+      ffi.Pointer<ffi.Uint8> multiByteStr,
+      int multiByteLength,
+      ffi.Pointer<ffi.Uint16> wideCharStr,
+      int wideCharLength,
+    );
+
+final ffi.DynamicLibrary? _kernel32 = Platform.isWindows
+    ? ffi.DynamicLibrary.open('kernel32.dll')
+    : null;
+
+final _MultiByteToWideCharDart _multiByteToWideChar = _kernel32!
+    .lookupFunction<_MultiByteToWideCharNative, _MultiByteToWideCharDart>(
+      'MultiByteToWideChar',
+    );
 
 const String _libName = 'my_plugin_ffi';
 

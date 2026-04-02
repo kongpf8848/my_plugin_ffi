@@ -1,4 +1,77 @@
 #include "my_plugin_ffi.h"
+#if _WIN32
+#include "software_info.h"
+
+typedef int(__stdcall *GetLibraryVersionFn)(char *, int);
+typedef int(__stdcall *EnumerateInstalledSoftwareFn)(SOFTWARE_INFO *, int *);
+typedef int(__stdcall *IsSoftwareInstalledFn)(const char *);
+
+static HMODULE g_software_info_dll = NULL;
+static GetLibraryVersionFn g_get_library_version = NULL;
+static EnumerateInstalledSoftwareFn g_enumerate_installed_software = NULL;
+static IsSoftwareInstalledFn g_is_software_installed = NULL;
+
+static int load_software_info_functions(void) {
+    if (g_get_library_version && g_enumerate_installed_software && g_is_software_installed) {
+        return 1;
+    }
+
+    if (!g_software_info_dll) {
+        HMODULE current_module = NULL;
+        char module_path[MAX_PATH] = {0};
+        char *last_slash = NULL;
+        char dll_path[MAX_PATH] = {0};
+
+        if (GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                (LPCSTR) &load_software_info_functions,
+                &current_module
+        ) && GetModuleFileNameA(current_module, module_path, MAX_PATH) > 0) {
+            last_slash = strrchr(module_path, '\\');
+            if (last_slash) {
+                *last_slash = '\0';
+                snprintf(dll_path, MAX_PATH, "%s\\software_info.dll", module_path);
+                g_software_info_dll = LoadLibraryA(dll_path);
+            }
+        }
+
+        if (!g_software_info_dll) {
+            g_software_info_dll = LoadLibraryA("software_info.dll");
+        }
+    }
+
+    if (!g_software_info_dll) {
+        return 0;
+    }
+
+    g_get_library_version = (GetLibraryVersionFn) GetProcAddress(g_software_info_dll, "GetLibraryVersion");
+    g_enumerate_installed_software = (EnumerateInstalledSoftwareFn) GetProcAddress(g_software_info_dll, "EnumerateInstalledSoftware");
+    g_is_software_installed = (IsSoftwareInstalledFn) GetProcAddress(g_software_info_dll, "IsSoftwareInstalled");
+
+    return g_get_library_version && g_enumerate_installed_software && g_is_software_installed;
+}
+
+FFI_PLUGIN_EXPORT int __stdcall GetLibraryVersion(char *versionString, int bufferSize) {
+    if (!load_software_info_functions()) {
+        return -1;
+    }
+    return g_get_library_version(versionString, bufferSize);
+}
+
+FFI_PLUGIN_EXPORT int __stdcall EnumerateInstalledSoftware(SOFTWARE_INFO *infoArray, int *arraySize) {
+    if (!load_software_info_functions()) {
+        return -1;
+    }
+    return g_enumerate_installed_software(infoArray, arraySize);
+}
+
+FFI_PLUGIN_EXPORT int __stdcall IsSoftwareInstalled(const char *softwareName) {
+    if (!load_software_info_functions()) {
+        return -1;
+    }
+    return g_is_software_installed(softwareName);
+}
+#endif
 
 // A very short-lived native function.
 //

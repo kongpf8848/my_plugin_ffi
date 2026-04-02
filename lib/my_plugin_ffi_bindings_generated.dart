@@ -8,7 +8,7 @@
 // ignore_for_file: type=lint
 import 'dart:ffi' as ffi;
 
-/// Bindings for `src/my_plugin_ffi.h`.
+/// Bindings for `src/my_plugin_ffi.h` and `src/software_info.h`.
 ///
 /// Regenerate bindings with `dart run ffigen --config ffigen.yaml`.
 ///
@@ -205,6 +205,62 @@ class MyPluginFfiBindings {
       );
   late final _call_callback = _call_callbackPtr
       .asFunction<void Function(int, IntCallback)>();
+
+  /// Get DLL version information
+  /// Parameters:
+  /// versionString - Buffer to receive version string (e.g., "1.0.0")
+  /// bufferSize    - Size of the buffer
+  /// Returns: 0 on success, -1 on error
+  int GetLibraryVersion(ffi.Pointer<ffi.Char> versionString, int bufferSize) {
+    return _GetLibraryVersion(versionString, bufferSize);
+  }
+
+  late final _GetLibraryVersionPtr =
+      _lookup<
+        ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Char>, ffi.Int)>
+      >('GetLibraryVersion');
+  late final _GetLibraryVersion =
+      _GetLibraryVersionPtr.asFunction<
+        int Function(ffi.Pointer<ffi.Char>, int)
+      >();
+
+  /// Enumerate installed software
+  /// Parameters:
+  /// infoArray - Array to receive software info
+  /// arraySize - Input: array capacity, Output: actual count
+  /// Returns: Number of software found, -1 on error
+  int EnumerateInstalledSoftware(
+    ffi.Pointer<SOFTWARE_INFO> infoArray,
+    ffi.Pointer<ffi.Int> arraySize,
+  ) {
+    return _EnumerateInstalledSoftware(infoArray, arraySize);
+  }
+
+  late final _EnumerateInstalledSoftwarePtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Int Function(ffi.Pointer<SOFTWARE_INFO>, ffi.Pointer<ffi.Int>)
+        >
+      >('EnumerateInstalledSoftware');
+  late final _EnumerateInstalledSoftware =
+      _EnumerateInstalledSoftwarePtr.asFunction<
+        int Function(ffi.Pointer<SOFTWARE_INFO>, ffi.Pointer<ffi.Int>)
+      >();
+
+  /// Check if software is installed by name (partial match, case-insensitive)
+  /// Parameters:
+  /// softwareName - Software name to search for (partial match supported)
+  /// Returns: 1 = installed, 0 = not installed, -1 = error
+  int IsSoftwareInstalled(ffi.Pointer<ffi.Char> softwareName) {
+    return _IsSoftwareInstalled(softwareName);
+  }
+
+  late final _IsSoftwareInstalledPtr =
+      _lookup<ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Char>)>>(
+        'IsSoftwareInstalled',
+      );
+  late final _IsSoftwareInstalled =
+      _IsSoftwareInstalledPtr.asFunction<int Function(ffi.Pointer<ffi.Char>)>();
 }
 
 final class Coordinate extends ffi.Struct {
@@ -225,3 +281,48 @@ final class Place extends ffi.Struct {
 typedef IntCallback = ffi.Pointer<ffi.NativeFunction<IntCallbackFunction>>;
 typedef IntCallbackFunction = ffi.Void Function(ffi.Int);
 typedef DartIntCallbackFunction = void Function(int);
+
+@ffi.Packed(1)
+final class _SOFTWARE_INFO extends ffi.Struct {
+  /// Software display name
+  @ffi.Array.multi([256])
+  external ffi.Array<ffi.Char> name;
+
+  /// Publisher name
+  @ffi.Array.multi([256])
+  external ffi.Array<ffi.Char> publisher;
+
+  /// Version string
+  @ffi.Array.multi([64])
+  external ffi.Array<ffi.Char> version;
+
+  /// Installation date (YYYYMMDD)
+  @ffi.Array.multi([32])
+  external ffi.Array<ffi.Char> installDate;
+
+  /// Installation directory
+  @ffi.Array.multi([260])
+  external ffi.Array<ffi.Char> installLocation;
+
+  /// Uninstall command
+  @ffi.Array.multi([260])
+  external ffi.Array<ffi.Char> uninstallString;
+
+  /// Icon path
+  @ffi.Array.multi([260])
+  external ffi.Array<ffi.Char> displayIcon;
+
+  /// Size in KB
+  @ffi.UnsignedInt()
+  external int estimatedSize;
+
+  /// 1 = 64-bit, 0 = 32-bit
+  @ffi.Int()
+  external int is64Bit;
+}
+
+typedef SOFTWARE_INFO = _SOFTWARE_INFO;
+
+const int _WIN32_WINNT = 2560;
+
+const int WINVER = 2560;
